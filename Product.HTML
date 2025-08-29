@@ -424,6 +424,11 @@
             <datalist id="inventorySubCategoryList"></datalist>
         </div>
         
+        <div class="form-group" id="costPriceGroup" style="display: none;">
+            <label for="costPrice" id="costPriceLabel" class="tooltip">Total Cost Price</label>
+            <input type="number" step="0.01" id="costPrice" placeholder="e.g., 15.50">
+        </div>
+
         <div class="form-group" id="suppliedQuantityGroup" style="display: none;">
             <label for="suppliedQuantity" id="suppliedQuantityLabel" class="tooltip">Supplied Quantity</label>
             <input type="number" id="suppliedQuantity" placeholder="e.g., 100">
@@ -432,11 +437,6 @@
         <div class="form-group" id="yieldQuantityGroup" style="display: none;">
             <label for="yieldQuantity" id="yieldQuantityLabel" class="tooltip">Yield Quantity</label>
             <input type="number" id="yieldQuantity" placeholder="e.g., 50">
-        </div>
-
-        <div class="form-group" id="costPriceGroup">
-            <label for="costPrice" id="costPriceLabel" class="tooltip">Default Cost Price</label>
-            <input type="number" step="0.01" id="costPrice" placeholder="e.g., 15.50">
         </div>
 
         <div class="form-group">
@@ -1222,6 +1222,7 @@ function updateRequiredFields() {
     const selectedType = productTypeSelect.value;
     const inventoryCategoryLabel = document.getElementById('inventoryCategoryLabel');
     const inventorySubCategoryLabel = document.getElementById('inventorySubCategoryLabel');
+    const costPriceLabel = document.getElementById('costPriceLabel');
     const suppliedQuantityGroup = document.getElementById('suppliedQuantityGroup');
     const suppliedQuantityLabel = document.getElementById('suppliedQuantityLabel');
     const yieldQuantityGroup = document.getElementById('yieldQuantityGroup');
@@ -1232,26 +1233,30 @@ function updateRequiredFields() {
     const prepLocationInput = document.getElementById('prepLocation');
     const menuCategoryInput = document.getElementById('menuCategory');
 
-    // Start with a baseline of what's generally visible
-    costPriceGroup.style.display = 'flex';
+    // --- Reset visibility of all conditional fields ---
+    costPriceGroup.style.display = 'none';
     sellingPriceGroup.style.display = 'flex';
     prepLocationGroup.style.display = 'flex';
     menuCategoryGroup.style.display = 'flex';
     inventoryCategoryLabel.innerHTML = `Inventory Category`;
     inventorySubCategoryLabel.innerHTML = `Inventory Sub-Category`;
+    costPriceLabel.innerHTML = `Default Cost Price`;
     suppliedQuantityGroup.style.display = 'none';
     yieldQuantityGroup.style.display = 'none';
-    singleProductModifierControls.style.display = (currentVariantGroups.length === 0) ? 'flex' : 'none';
-    
-    // Hide price fields if variants exist, as pricing is per-variant
-    if (currentVariantGroups.length > 0) {
-        sellingPriceGroup.style.display = 'none';
-        costPriceGroup.style.display = 'none';
+    singleProductModifierControls.style.display = 'none';
+
+    // Show single modifier button if there are no variants
+    if(currentVariantGroups.length === 0) {
+        singleProductModifierControls.style.display = 'flex';
     }
     
-    // Apply rules based on product type
+    // Hide default price fields if variants exist
+    if (currentVariantGroups.length > 0) {
+        sellingPriceGroup.style.display = 'none';
+    }
+    
+    // --- Apply rules based on product type ---
     if (selectedType === 'finishedGood') {
-        costPriceGroup.style.display = 'none';
         inventoryCategoryLabel.innerHTML = `Inventory Category (Not Required)`;
         inventorySubCategoryLabel.innerHTML = `Inventory Sub-Category (Not Required)`;
     } else if (selectedType === 'rawMaterial') {
@@ -1261,16 +1266,19 @@ function updateRequiredFields() {
         menuCategoryGroup.style.display = 'none';
         menuCategoryInput.value = '';
         inventoryCategoryLabel.innerHTML = `Inventory Category <span class="required-star">*</span>`;
+        costPriceGroup.style.display = 'flex';
+        costPriceLabel.innerHTML = `Total Cost Price <span class="required-star">*</span>`;
         suppliedQuantityGroup.style.display = 'flex';
         suppliedQuantityLabel.innerHTML = `Supplied Quantity <span class="required-star">*</span>`;
     } else if (selectedType === 'finishedGood & rawMaterial') {
         inventoryCategoryLabel.innerHTML = `Inventory Category <span class="required-star">*</span>`;
+        costPriceGroup.style.display = 'flex';
+        costPriceLabel.innerHTML = `Total Cost Price <span class="required-star">*</span>`;
         suppliedQuantityGroup.style.display = 'flex';
         suppliedQuantityLabel.innerHTML = `Supplied Quantity <span class="required-star">*</span>`;
     }
     else if (selectedType === 'Manufactured') {
         sellingPriceGroup.style.display = 'none';
-        costPriceGroup.style.display = 'none';
         prepLocationGroup.style.display = 'none';
         prepLocationInput.value = '';
         menuCategoryGroup.style.display = 'none';
@@ -1443,17 +1451,14 @@ function generateAndRenderPricing() {
         return {
             combination: combinationString,
             sellingPrice: existing ? existing.sellingPrice : '',
-            costPrice: existing ? existing.costPrice : ''
         };
     });
     currentVariantPricing = newPricingData;
-    
-    const productType = document.getElementById('productType').value;
 
     currentVariantPricing.forEach((priceItem, index) => {
         const row = document.createElement('div');
         row.className = 'variant-pricing-row';
-        row.style.gridTemplateColumns = '2fr 1fr auto'; // Adjusted base columns
+        row.style.gridTemplateColumns = '2fr 1fr auto';
         
         const nameEl = document.createElement('span');
         nameEl.className = 'combo-name';
@@ -1478,15 +1483,6 @@ function generateAndRenderPricing() {
         
         row.appendChild(nameEl);
         row.appendChild(spInput);
-
-        if (productType !== 'finishedGood') {
-            const cpInput = document.createElement('input');
-            cpInput.type = 'number'; cpInput.step = '0.01'; cpInput.placeholder = 'Cost Price';
-            cpInput.value = priceItem.costPrice;
-            cpInput.oninput = (e) => currentVariantPricing[index].costPrice = e.target.value;
-            row.appendChild(cpInput);
-            row.style.gridTemplateColumns = '2fr 1fr 1fr auto'; // Restore original columns
-        }
         
         const linkedModifiers = currentModifierLinks[priceItem.combination] || [];
         if (linkedModifiers.length > 0) {
@@ -1543,11 +1539,27 @@ function validateForm() {
 
     if (baseProductName === "") errors.push("Product Name is required.");
     if (!uom) errors.push("Selling UOM is required.");
-    if (productType !== 'rawMaterial' && productType !== 'finishedGood & rawMaterial' && productType !== 'Manufactured' && prep === "") errors.push("Preparation Location is required.");
-    if (productType !== 'rawMaterial' && productType !== 'finishedGood & rawMaterial' && productType !== 'Manufactured' && menu === "") errors.push("Menu Category is required.");
     if (!productType) errors.push("Product Type is required.");
     if (!taxApplicable) errors.push("Tax Applicable is required.");
     
+    // Type-specific field validation
+    if (productType === 'finishedGood' || productType === 'finishedGood & rawMaterial') {
+        if (prep === "") errors.push("Preparation Location is required.");
+        if (menu === "") errors.push("Menu Category is required.");
+    }
+
+    if (productType === 'rawMaterial' || productType === 'finishedGood & rawMaterial') {
+        if (invCat === "") errors.push("Inventory Category is required.");
+        if (suppliedQuantity === "") errors.push("Supplied Quantity is required.");
+        if (isNaN(defaultCost)) errors.push("Total Cost Price is required.");
+    }
+
+    if (productType === 'Manufactured') {
+         if (invCat === "") errors.push("Inventory Category is required.");
+         if (yieldQuantity === "") errors.push("Yield Quantity is required.");
+    }
+    
+    // Pricing validation
     if (currentVariantGroups.length > 0) {
         currentVariantGroups.forEach((g, i) => {
             if (!g.groupName.trim()) errors.push(`Group Name is required for variant group #${i + 1}.`);
@@ -1560,20 +1572,23 @@ function validateForm() {
                 errors.push(`Selling price is required for variant combination "${p.combination}".`);
             }
         });
-    } else {
-        if ((productType === 'finishedGood' || productType === 'finishedGood & rawMaterial') && isNaN(defaultPrice)) {
-            errors.push("A Default Selling Price is required if no variants are added.");
-        }
-        if ((productType === 'rawMaterial' || productType === 'finishedGood & rawMaterial') && isNaN(defaultCost)) {
-            errors.push("A Default Cost Price is required if no variants are added.");
+    } else { // No variants
+        if (productType === 'finishedGood' || productType === 'finishedGood & rawMaterial') {
+            if (isNaN(defaultPrice)) errors.push("A Default Selling Price is required if no variants are added.");
         }
     }
 
-    if ((productType === 'rawMaterial' || productType === 'finishedGood & rawMaterial') && (invCat === "" || suppliedQuantity === "")) errors.push("Inv Category & Supplied Quantity are required.");
-    if (productType === 'Manufactured' && (invCat === "" || yieldQuantity === "")) errors.push("Inv Category & Yield Quantity are required.");
     if (hasBarcode === 'yes' && barcode === "") errors.push("Barcode is required.");
+    
+    // PLU validation
     if (sessionDefinePlu === 'yes' && customPlu === "") errors.push("Custom Base PLU/SKU is required.");
-    if (sessionDefinePlu === 'yes' && products.some((p, i) => p.pluBase === customPlu && i !== editingIndex)) errors.push(`Base PLU/SKU "${customPlu}" already exists.`);
+    if (sessionDefinePlu === 'yes' && products.some((p, i) => {
+        const pGroupId = p.productGroupId;
+        const editingGroupId = editingIndex > -1 ? products[editingIndex].productGroupId : null;
+        return pGroupId === customPlu && pGroupId !== editingGroupId;
+     })) {
+        errors.push(`Base PLU/SKU "${customPlu}" already exists.`);
+    }
         
     return errors;
 }
@@ -1616,66 +1631,106 @@ function addProduct() {
     }
 }
 
-function createAndAddProducts(data, existingPluBase = null) {
-    const combinationsToProcess = data.variantPricing.length > 0 
-        ? data.variantPricing 
-        : [{ combination: '', sellingPrice: data.defaultPrice, costPrice: data.defaultCost }];
-    
-    // Determine the single, unique Base PLU for this entire group.
-    const pluBase = existingPluBase || (sessionDefinePlu === 'yes' && data.customPlu ? data.customPlu : "PLU-" + (++pluCounter));
-
-    let potentialProductsToAdd = [];
-    let nameErrors = [];
-
-    combinationsToProcess.forEach((combo) => {
-        let prefixedBaseName = data.productName;
-        if (data.productType === "rawMaterial") prefixedBaseName = "(RAW) " + data.productName;
-        else if (data.productType === "Manufactured") prefixedBaseName = "(MAN) " + data.productName;
-
-        const finalName = (combo.combination && combo.combination.trim() !== "") ? `${prefixedBaseName} - ${combo.combination.trim()}` : prefixedBaseName;
-        if (products.some(p => p["Product Name & Variant"] === finalName && p._source.productName === data.productName)) { 
-            nameErrors.push(`Product "${finalName}" already exists.`);
-        }
-
-        const linkedModifierGroupNames = data.modifierLinks[combo.combination] || [];
-        const modifierString = linkedModifierGroupNames.join(', ');
-        
-        potentialProductsToAdd.push({
-            finalName, prefixedBaseName, variantName: combo.combination ? combo.combination.trim() : '',
-            sellingPrice: parseFloat(combo.sellingPrice),
-            costPrice: parseFloat(combo.costPrice),
-            modifierString
-        });
-    });
-
-    if (nameErrors.length > 0) { showModal("Please fix issues:\n- " + nameErrors.join("\n- "), "error"); return; }
-    
+function createAndAddProducts(data, existingGroupId = null) {
+    const isFinishedAndRaw = data.productType === 'finishedGood & rawMaterial';
     const newProductStartIndex = products.length;
-    let internalProductType = data.productType === 'Manufactured' ? 'preparation' : 'single';
-    
-    potentialProductsToAdd.forEach((item, index) => {
-        const finalPrice = isNaN(item.sellingPrice) ? 0 : item.sellingPrice;
-        const finalCost = isNaN(item.costPrice) ? 0 : item.costPrice;
-        const gp = (finalPrice > 0) ? ((finalPrice - finalCost) / finalPrice) * 100 : 0;
+
+    // --- Special handling for "finishedGood & rawMaterial" type ---
+    if (isFinishedAndRaw) {
+        const groupId = existingGroupId || (sessionDefinePlu === 'yes' && data.customPlu ? data.customPlu : ++pluCounter);
         
-        let productPlu = (combinationsToProcess.length > 1) ? `${pluBase}-${index + 1}` : pluBase;
-        
-        const product = {
-          "pluBase": pluBase, // Explicitly store the Base PLU for grouping
-          "_source": data,
-          "Product PLU": productPlu, "Product Name & Variant": item.finalName, "Base Name": item.prefixedBaseName,
-          "Variant Name": item.variantName, "Original Product Type": data.productType, "Site": sessionSite,
-          "GP": gp, "Selling UOM": data.uom, "Preparation Location": data.prepLocation, "Menu Category": data.menuCategory,
-          "Inventory Category": data.invCategory, "Inventory Sub-Category": data.invSubCategory,
-          "Product Type": internalProductType,
-          "Supplied Quantity": (data.productType === 'rawMaterial' || data.productType === 'finishedGood & rawMaterial') ? data.suppliedQuantity : '',
-          "Manufactured Yield": (data.productType === 'Manufactured') ? data.yieldQuantity : '',
-          "Enabled": true, "Cost Price": finalCost, "Selling Price": finalPrice,
-          "Tax Applicable": data.taxApplicable === 'true',
-          "Modifier": item.modifierString, "Barcode": data.barcode
+        // 1. Create the Raw Material Product
+        const rawPluBase = `RAW-${groupId}`;
+        const rawProduct = {
+            productGroupId: groupId,
+            pluBase: rawPluBase,
+            _source: data,
+            "Product PLU": rawPluBase, "Product Name & Variant": `(RAW) ${data.productName}`, "Base Name": `(RAW) ${data.productName}`,
+            "Variant Name": '', "Original Product Type": 'rawMaterial', "Site": sessionSite,
+            "GP": 0, "Selling UOM": data.uom, "Preparation Location": '', "Menu Category": '',
+            "Inventory Category": data.invCategory, "Inventory Sub-Category": data.invSubCategory,
+            "Product Type": 'single', "Supplied Quantity": data.suppliedQuantity, "Manufactured Yield": '',
+            "Enabled": true, "Cost Price": data.defaultCost || 0, "Selling Price": 0, "Tax Applicable": false,
+            "Modifier": '', "Barcode": ''
         };
-        products.push(product);
-    });
+        products.push(rawProduct);
+
+        // 2. Create Finished Good Product(s)
+        const unitCost = (data.defaultCost && data.suppliedQuantity > 0) ? data.defaultCost / data.suppliedQuantity : 0;
+        const finishedPluBase = `PLU-${groupId}`;
+        const combinationsToProcess = data.variantPricing.length > 0 
+            ? data.variantPricing 
+            : [{ combination: '', sellingPrice: data.defaultPrice }];
+        
+        combinationsToProcess.forEach((combo, index) => {
+            const finalName = combo.combination ? `${data.productName} - ${combo.combination}` : data.productName;
+            const finalPrice = isNaN(combo.sellingPrice) ? 0 : combo.sellingPrice;
+            const gp = (finalPrice > 0 && finalPrice > unitCost) ? ((finalPrice - unitCost) / finalPrice) * 100 : 0;
+            const productPlu = (combinationsToProcess.length > 1) ? `${finishedPluBase}-${index + 1}` : finishedPluBase;
+
+            const linkedModifierGroupNames = data.modifierLinks[combo.combination || ''] || [];
+            const modifierString = currentModifierGroups
+                .filter(group => linkedModifierGroupNames.includes(group.groupName))
+                .flatMap(group => group.options.map(opt => `${group.groupName}: ${opt.name} (${(opt.price || 0).toFixed(2)})`))
+                .join(', ');
+
+            const finishedProduct = {
+                productGroupId: groupId,
+                pluBase: finishedPluBase,
+                _source: data,
+                "Product PLU": productPlu, "Product Name & Variant": finalName, "Base Name": data.productName,
+                "Variant Name": combo.combination || '', "Original Product Type": 'finishedGood', "Site": sessionSite,
+                "GP": gp, "Selling UOM": "ea", "Preparation Location": data.prepLocation, "Menu Category": data.menuCategory,
+                "Inventory Category": '', "Inventory Sub-Category": '', "Product Type": 'single', "Supplied Quantity": '',
+                "Manufactured Yield": '', "Enabled": true, "Cost Price": unitCost, "Selling Price": finalPrice,
+                "Tax Applicable": data.taxApplicable === 'true', "Modifier": modifierString, "Barcode": data.barcode
+            };
+            products.push(finishedProduct);
+        });
+
+    } else {
+        // --- Original Logic for all other types ---
+        const groupId = existingGroupId || (sessionDefinePlu === 'yes' && data.customPlu ? data.customPlu : ++pluCounter);
+        const pluBase = `PLU-${groupId}`;
+        const combinationsToProcess = data.variantPricing.length > 0 
+            ? data.variantPricing 
+            : [{ combination: '', sellingPrice: data.defaultPrice, costPrice: data.defaultCost }];
+        
+        combinationsToProcess.forEach((combo, index) => {
+            let prefixedBaseName = data.productName;
+            if (data.productType === "rawMaterial") prefixedBaseName = "(RAW) " + data.productName;
+            else if (data.productType === "Manufactured") prefixedBaseName = "(MAN) " + data.productName;
+
+            const finalName = (combo.combination) ? `${prefixedBaseName} - ${combo.combination}` : prefixedBaseName;
+            const finalPrice = isNaN(combo.sellingPrice) ? 0 : combo.sellingPrice;
+            const finalCost = isNaN(combo.costPrice) ? 0 : combo.costPrice;
+            const gp = (finalPrice > 0 && finalPrice > finalCost) ? ((finalPrice - finalCost) / finalPrice) * 100 : 0;
+            const productPlu = (combinationsToProcess.length > 1) ? `${pluBase}-${index + 1}` : pluBase;
+
+            const linkedModifierGroupNames = data.modifierLinks[combo.combination || ''] || [];
+            const modifierString = currentModifierGroups
+                .filter(group => linkedModifierGroupNames.includes(group.groupName))
+                .flatMap(group => group.options.map(opt => `${group.groupName}: ${opt.name} (${(opt.price || 0).toFixed(2)})`))
+                .join(', ');
+
+            const product = {
+                productGroupId: groupId,
+                pluBase: pluBase,
+                _source: data,
+                "Product PLU": productPlu, "Product Name & Variant": finalName, "Base Name": prefixedBaseName,
+                "Variant Name": combo.combination || '', "Original Product Type": data.productType, "Site": sessionSite,
+                "GP": gp, "Selling UOM": data.uom, "Preparation Location": data.prepLocation, "Menu Category": data.menuCategory,
+                "Inventory Category": data.invCategory, "Inventory Sub-Category": data.invSubCategory,
+                "Product Type": data.productType === 'Manufactured' ? 'preparation' : 'single',
+                "Supplied Quantity": (data.productType === 'rawMaterial') ? data.suppliedQuantity : '',
+                "Manufactured Yield": (data.productType === 'Manufactured') ? data.yieldQuantity : '',
+                "Enabled": true, "Cost Price": finalCost, "Selling Price": finalPrice,
+                "Tax Applicable": data.taxApplicable === 'true',
+                "Modifier": modifierString, "Barcode": data.barcode
+            };
+            products.push(product);
+        });
+    }
 
     saveState();
     updateTable(newProductStartIndex);
@@ -1691,19 +1746,18 @@ function updateProduct(index) {
     
     const data = gatherProductData();
     const originalProduct = products[index];
+    const groupIdToUpdate = originalProduct.productGroupId;
 
-    // **BUG FIX: Use the robust `pluBase` property for updating**
-    if (!originalProduct || !originalProduct.pluBase) {
-        showModal('This is an older product without a Base PLU. It cannot be safely edited. Please remove and re-add it to ensure data integrity.', 'error');
+    if (!groupIdToUpdate) {
+        showModal('This is an older product without a Group ID. It cannot be safely edited. Please remove and re-add it.', 'error');
         return;
     }
-    const pluBaseToUpdate = originalProduct.pluBase;
 
-    // Remove all items belonging to the same group, identified by the exact pluBase
-    products = products.filter(p => p.pluBase !== pluBaseToUpdate);
+    // Remove all items belonging to the same group ID
+    products = products.filter(p => p.productGroupId !== groupIdToUpdate);
 
-    // Re-create the products with the updated data, reusing the original pluBase
-    createAndAddProducts(data, pluBaseToUpdate);
+    // Re-create the products with the updated data, reusing the original group ID
+    createAndAddProducts(data, groupIdToUpdate);
     
     resetForm();
     showModal('Product updated successfully!', 'warning');
@@ -1715,15 +1769,16 @@ function editProduct(index) {
         showModal('This product cannot be edited as it was created with an older version.', 'error');
         return;
     }
-
-    if (!product.pluBase) {
-        showModal('This is an older product without a Base PLU. It cannot be safely edited. Please remove and re-add it to ensure data integrity.', 'error');
+    if (!product.productGroupId) {
+         showModal('This is an older product without a Group ID. It cannot be safely edited. Please remove and re-add it.', 'error');
         return;
     }
     
-    const relatedProducts = products.filter(p => p.pluBase === product.pluBase);
+    const relatedProducts = products.filter(p => p.productGroupId === product.productGroupId);
     if (relatedProducts.length > 1) {
-        showModal(`This product has ${relatedProducts.length-1} other variants. Editing it will affect all of them. Do you want to continue?`, 'warning', () => proceedWithEdit(product, index), true);
+        const otherVariants = relatedProducts.length - 1;
+        let message = `This product has ${otherVariants} other related component(s)/variant(s). Editing it will affect all of them. Do you want to continue?`;
+        showModal(message, 'warning', () => proceedWithEdit(product, index), true);
     } else {
         proceedWithEdit(product, index);
     }
@@ -1748,8 +1803,7 @@ function proceedWithEdit(product, index) {
     document.getElementById("hasBarcode").value = source.hasBarcode;
     document.getElementById("barcode").value = source.barcode;
     
-    // Set the customPlu field to the group's base PLU
-    document.getElementById("customPlu").value = product.pluBase;
+    document.getElementById("customPlu").value = product.productGroupId;
     
     currentVariantGroups = JSON.parse(JSON.stringify(source.variantGroups || []));
     currentVariantPricing = JSON.parse(JSON.stringify(source.variantPricing || []));
@@ -1764,11 +1818,9 @@ function proceedWithEdit(product, index) {
     mainActionButton.textContent = 'Update Product';
     mainActionButton.classList.replace('btn-add', 'btn-update');
 
-    document.querySelectorAll('#productTable tbody tr').forEach(row => {
-        row.classList.remove('editing-row');
-    });
+    document.querySelectorAll('#productTable tbody tr').forEach(row => row.classList.remove('editing-row'));
     
-    const rowsToHighlight = products.filter(p => p.pluBase === product.pluBase).map(p => p['Product PLU']);
+    const rowsToHighlight = products.filter(p => p.productGroupId === product.productGroupId).map(p => p['Product PLU']);
     document.querySelectorAll('#productTable tbody tr').forEach(row => {
         const rowPlu = row.cells[0].textContent;
         if (rowsToHighlight.includes(rowPlu)) {
@@ -1836,29 +1888,19 @@ function updateTable(newProductStartIndex = -1) {
     removeBtn.title = "Remove Product";
     removeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path d="M3 6v18h18v-18h-18zm5 14c0 .552-.448 1-1 1s-1-.448-1-1v-10c0-.552.448-1 1-1s1 .448 1 1v10zm5 0c0 .552-.448 1-1 1s-1-.448-1-1v-10c0-.552.448-1 1-1s1 .448 1 1v10zm5 0c0 .552-.448 1-1 1s-1-.448-1-1v-10c0-.552.448-1 1-1s1 .448 1 1v10zm4-18h-20v-2h6v-1.5c0-.827.673-1.5 1.5-1.5h5c.825 0 1.5.671 1.5 1.5v1.5h6v2z"/></svg>`;
     removeBtn.onclick = () => { 
-        const pluBaseToRemove = p.pluBase;
-        let productCount;
-        let baseNameForMessage = p["Base Name"];
-
-        if (pluBaseToRemove) {
-            productCount = products.filter(prod => prod.pluBase === pluBaseToRemove).length;
-        } else {
-            // Fallback for very old data without pluBase
-            const classicPluBase = p['Product PLU'].split('-')[0];
-            productCount = products.filter(prod => prod['Product PLU'].startsWith(classicPluBase)).length;
+        const groupIdToRemove = p.productGroupId;
+        if (!groupIdToRemove) {
+            showModal("This is an old product and cannot be removed safely. Please clear all data if you wish to remove it.", "error");
+            return;
         }
+        
+        const productsInGroup = products.filter(prod => prod.productGroupId === groupIdToRemove);
+        const baseNameForMessage = p._source.productName;
 
-        const message = productCount > 1 
-            ? `Remove "${baseNameForMessage}" and its ${productCount-1} other variants?`
-            : `Remove "${p["Product Name & Variant"]}"?`;
+        const message = `Remove "${baseNameForMessage}" and all its ${productsInGroup.length - 1} related components/variants?`;
         
         showModal(message, 'warning', () => { 
-            if (pluBaseToRemove) {
-                products = products.filter(prod => prod.pluBase !== pluBaseToRemove);
-            } else {
-                const classicPluBase = p['Product PLU'].split('-')[0];
-                products = products.filter(prod => !prod['Product PLU'].startsWith(classicPluBase));
-            }
+            products = products.filter(prod => prod.productGroupId !== groupIdToRemove);
             saveState(); 
             updateTable(); 
         }, true); 
@@ -1881,7 +1923,7 @@ function exportToExcel() {
     const videoOverlay = document.getElementById('videoOverlay');
     const exportVideo = document.getElementById('exportVideo');
 
-    // Main sheet data with simplified modifier column
+    // Main sheet data
     const exportData = products.map(p => {
         let inventoryCategory = p["Inventory Category"];
         if (inventoryCategory) { 
@@ -1892,13 +1934,10 @@ function exportToExcel() {
             }
         }
         let finalCostPrice = p["Cost Price"];
-        if ((p["Original Product Type"] === 'rawMaterial' || p["Original Product Type"] === 'finishedGood & rawMaterial') && p["Supplied Quantity"] && p["Supplied Quantity"] > 0) {
-            finalCostPrice = p["Cost Price"] / p["Supplied Quantity"];
+        // For raw items, calculate unit cost for export sheet if supplied qty is present
+        if (p["Original Product Type"] === 'rawMaterial' && p["Supplied Quantity"] && Number(p["Supplied Quantity"]) > 0) {
+            finalCostPrice = p["Cost Price"] / Number(p["Supplied Quantity"]);
         }
-
-        const variantName = p["Variant Name"] || '';
-        const linkedGroups = p._source?.modifierLinks?.[variantName] || [];
-        const modifierColumnValue = linkedGroups.join(', ');
 
         return {
           "Product PLU": p["Product PLU"], "Product Name & Variant": p["Product Name & Variant"], "Site": p.Site,
@@ -1906,7 +1945,7 @@ function exportToExcel() {
           "Menu Category": p["Menu Category"], "Inventory Category": inventoryCategory, "Inventory Sub-Category": p["Inventory Sub-Category"],
           "Product Type": p["Product Type"], "Enabled": p.Enabled, "Cost Price": finalCostPrice, "Selling Price": p["Selling Price"],
           "Dynamic Price": false, "Visible on App": false, "Default Selling Location": "Default Selling Location", "Default Storage Location": "Default Storage Location",
-          "Tax Applicable": p["Tax Applicable"], "Modifier": modifierColumnValue,
+          "Tax Applicable": p["Tax Applicable"],
           "Barcode": p.Barcode, "Supplied Quantity": p["Supplied Quantity"] ? `${p["Supplied Quantity"]} ${p["Selling UOM"]}` : '',
           "Supplied Quantity Cost Price": p["Supplied Quantity"] ? p["Cost Price"] : '', "Manufactured Yield": p["Manufactured Yield"],
           "Product PLU (End)": p["Product PLU"], "Product Name": p["Base Name"],
@@ -1915,14 +1954,21 @@ function exportToExcel() {
     });
 
     // Second sheet data
-    const createProductStructureData = products.map(p => ({
-        "Product PLU": p["Product PLU"], "Name": p["Base Name"],
-        "Variants": p["Variant Name"] ? p["Variant Name"] : "",
-        "Menu Categories": p["Menu Category"], "Inventory Type": p["Original Product Type"], "Tags": "",
-        "Selling UOM": p["Selling UOM"], "Tax Applicable": p["Tax Applicable"], "Show on Royalty": false,
-        "Inventory Category": p["Inventory Category"], "Inventory Sub-Category": p["Inventory Sub-Category"],
-        "Barcodes": p.Barcode, "Product SKU": p["Product PLU"], "Description": ""
-    }));
+    const createProductStructureData = products.map(p => {
+        const variantName = p["Variant Name"] || '';
+        const linkedGroups = p._source?.modifierLinks?.[variantName] || [];
+        const modifierColumnValue = linkedGroups.join(', ');
+
+        return {
+            "Product PLU": p["Product PLU"], "Name": p["Base Name"],
+            "Variants": p["Variant Name"] ? p["Variant Name"] : "",
+            "Modifiers": modifierColumnValue,
+            "Menu Categories": p["Menu Category"], "Inventory Type": p["Original Product Type"], "Tags": "",
+            "Selling UOM": p["Selling UOM"], "Tax Applicable": p["Tax Applicable"], "Show on Royalty": false,
+            "Inventory Category": p["Inventory Category"], "Inventory Sub-Category": p["Inventory Sub-Category"],
+            "Barcodes": p.Barcode, "Product SKU": p["Product PLU"], "Description": ""
+        };
+    });
 
     // Third sheet data (Modifier Groups)
     const modifierSheetData = [];
