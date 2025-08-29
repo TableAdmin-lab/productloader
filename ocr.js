@@ -1,14 +1,28 @@
+Certainly. I've adjusted your `ocr.js` file to use your secure Google Cloud Function proxy.
+
+The key change is within the `getMenuDataFromAI` function, where the direct call to the Google API has been replaced with a call to your new trigger URL. This removes the need for an API key in your client-side code.
+
+-----
+
+### \#\# Updated `ocr.js` File
+
+Replace the entire content of your existing `ocr.js` file with the code below.
+
+````javascript
 // ocr.js
 
 /**
- * Calls the Gemini API with a base64 image string.
+ * Calls your secure Google Cloud Function proxy with a base64 image string.
  * @param {string} base64String The base64 encoded image data.
  * @param {string} mimeType The MIME type of the image.
  * @returns {Promise<Array<Object>>} A promise that resolves with the structured menu data from the AI.
  */
 async function getMenuDataFromAI(base64String, mimeType) {
-    const model = 'gemini-1.5-flash-latest';
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GOOGLE_API_KEY}`;
+    // --- CHANGE START ---
+    // The API key is removed from here.
+    // The URL now points to your secure Google Cloud Function proxy.
+    const apiUrl = 'https://apikey-1094243450720.europe-west1.run.app';
+    // --- CHANGE END ---
 
     const requestPayload = {
         contents: [{
@@ -68,8 +82,10 @@ async function getMenuDataFromAI(base64String, mimeType) {
     });
 
     if (!response.ok) {
+        // Updated error handling to get more details from the proxy if available
         const errorBody = await response.json();
-        throw new Error(`API request failed: ${errorBody.error.message}`);
+        const errorMessage = errorBody.details ? JSON.stringify(errorBody.details) : errorBody.error || 'Unknown error';
+        throw new Error(`API request failed: ${errorMessage}`);
     }
 
     const responseData = await response.json();
@@ -277,3 +293,4 @@ function finalizeProcessing(menuData, onProgress, resolve) {
     onProgress('Processing complete!');
     resolve(normalizedMenuData);
 }
+````
